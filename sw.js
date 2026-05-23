@@ -1,39 +1,48 @@
-const CACHE_NAME = 'v1_colombia_despierta';
+const CACHE_NAME = 'v3_despierta_colombia';
 const ASSETS = [
   './',
   './index.html',
-  './manifest.json',
+  './style.css',
   './app.js',
-  './icon-192.png',
-  './icon-512.png'
+  './manifest.json'
 ];
 
+// Instalación e inyección en caché
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(ASSETS);
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Almacenando recursos básicos...');
+        // Usamos mètodos individuales para evitar que un fallo en un icono rompa toda la app
+        return Promise.all(
+          ASSETS.map(url => cache.add(url).catch(err => console.warn(`No se pudo cachear: ${url}`, err)))
+        );
+      })
+      .then(() => self.skipWaiting())
   );
 });
 
+// Activación y limpieza de versiones viejas
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
         keys.map(key => {
           if (key !== CACHE_NAME) {
+            console.log('Eliminando caché antiguo:', key);
             return caches.delete(key);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
 
+// Estrategia Network-First con caída a Caché (Evita pantallas en blanco si cambia el html)
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(cachedResponse => {
-      return cachedResponse || fetch(e.request);
+    fetch(e.request).catch(() => {
+      return caches.match(e.request);
     })
   );
 });
